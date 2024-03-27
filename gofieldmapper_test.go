@@ -42,7 +42,6 @@ func TestWithOmit(t *testing.T) {
 		Username: "foo_bar",
 		Name:     "",
 		Age:      30,
-		Meta:     []string{},
 	}
 	mp, err := Make(u, WithOmit())
 	expected := map[string]any{

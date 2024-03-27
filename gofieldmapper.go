@@ -2,6 +2,7 @@ package gofieldmapper
 
 import (
 	"errors"
+	"fmt"
 	"reflect"
 	"slices"
 	"strings"
@@ -17,32 +18,12 @@ func WithOmit() FieldRule {
 		if o == "" {
 			return tag, value, true
 		}
-		rv := reflect.ValueOf(value)
-		if isEmpty(rv) {
+		fmt.Println(reflect.ValueOf(value).IsZero())
+		if reflect.ValueOf(value).IsZero() {
 			return "", "", false
 		}
 		return tag, value, true
 	}
-}
-
-func isEmpty(v reflect.Value) bool {
-	switch v.Kind() {
-	case reflect.String, reflect.Array, reflect.Chan, reflect.Map, reflect.Slice:
-		return v.Len() == 0
-	case reflect.Ptr, reflect.Interface:
-		return v.IsNil()
-	case reflect.Bool:
-		return !v.Bool()
-	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
-		return v.Int() == 0
-	case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64, reflect.Uintptr:
-		return v.Uint() == 0
-	case reflect.Float32, reflect.Float64:
-		return v.Float() == 0
-	case reflect.Complex64, reflect.Complex128:
-		return v.Complex() == 0
-	}
-	return false
 }
 
 func WithMask(mask []string) FieldRule {
