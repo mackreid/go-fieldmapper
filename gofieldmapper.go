@@ -3,42 +3,108 @@ package gofieldmapper
 import (
 	"errors"
 	"reflect"
+	"slices"
 	"strings"
 )
 
 const package_tag = "fmap"
 
-func Get(o any) (map[string]any, error) {
-	rm := make(map[string]any)
-	val := reflect.ValueOf(o)
-	if val.Kind() == reflect.Pointer {
-		val = val.Elem()
+type FieldRule func(value any, tag string, opts string) (k string, v any, ok bool)
+
+func WithOmit() FieldRule {
+	return func(value any, tag string, opts string) (k string, v any, ok bool) {
+		o := GetOptKeyValue(opts, "omitempty")
+		if o == "" {
+			return tag, value, true
+		}
+		rv := reflect.ValueOf(value)
+		if isEmpty(rv) {
+			return "", "", false
+		}
+		return tag, value, true
 	}
-	if val.Kind() != reflect.Struct {
+}
+
+func isEmpty(v reflect.Value) bool {
+	switch v.Kind() {
+	case reflect.String, reflect.Array, reflect.Chan, reflect.Map, reflect.Slice:
+		return v.Len() == 0
+	case reflect.Ptr, reflect.Interface:
+		return v.IsNil()
+	case reflect.Bool:
+		return !v.Bool()
+	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
+		return v.Int() == 0
+	case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64, reflect.Uintptr:
+		return v.Uint() == 0
+	case reflect.Float32, reflect.Float64:
+		return v.Float() == 0
+	case reflect.Complex64, reflect.Complex128:
+		return v.Complex() == 0
+	}
+	return false
+}
+
+func WithMask(mask []string) FieldRule {
+	return func(value any, tag string, opts string) (k string, v any, ok bool) {
+		o := GetOptKeyValue(opts, "mask")
+		if !slices.Contains(mask, o) {
+			return "", "", false
+		}
+		return tag, value, true
+	}
+}
+
+func Make(obj any, rules ...FieldRule) (map[string]any, error) {
+	rm := make(map[string]any)
+	objValue := reflect.ValueOf(obj)
+	if objValue.Kind() == reflect.Pointer {
+		objValue = objValue.Elem()
+	}
+	if objValue.Kind() != reflect.Struct {
 		return nil, errors.New("must be a struct or pointer to a struct")
 	}
-	typ := val.Type()
-	for i := 0; i < val.NumField(); i++ {
-		field := val.Field(i)
-		fieldTyp := typ.Field(i)
+	objTyp := objValue.Type()
+
+fields:
+	for i := 0; i < objValue.NumField(); i++ {
+		field := objValue.Field(i)
+		fieldTyp := objTyp.Field(i)
 		tag := fieldTyp.Tag.Get(package_tag)
 		if tag == "-" || tag == "" {
 			continue
 		}
-		tagn, tago := splitTag(tag)
-		fVal := field.Interface()
-		if (fieldTyp.Type.Kind() == reflect.Slice || fieldTyp.Type.Kind() == reflect.Array) && reflect.ValueOf(fVal).Len() == 0 {
-			continue
+		n, o := parseTag(tag)
+		key := n
+		val := field.Interface()
+		for _, rule := range rules {
+			k, v, ok := rule(val, n, o)
+			if !ok {
+				continue fields
+			}
+			key = k
+			val = v
 		}
-		if fVal == reflect.Zero(fieldTyp.Type).Interface() && strings.Contains(tago, "omitempty") {
-			continue
-		}
-		rm[tagn] = fVal
+		rm[key] = val
 	}
 	return rm, nil
 }
 
-func splitTag(s string) (string, string) {
-	sp := strings.Split(s, ",")
-	return sp[0], strings.Join(sp[1:], ",")
+func GetOptKeyValue(tag string, key string) string {
+	parts := strings.Split(tag, ",")
+	for _, part := range parts {
+		kv := strings.SplitN(part, "=", 2)
+		if kv[0] == key {
+			if len(kv) > 1 {
+				return kv[1]
+			}
+			return kv[0]
+		}
+	}
+	return ""
+}
+
+func parseTag(tag string) (string, string) {
+	pt := strings.Split(tag, ",")
+	return pt[0], strings.Join(pt[1:], ",")
 }

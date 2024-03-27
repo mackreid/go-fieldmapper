@@ -8,33 +8,60 @@ import (
 
 type User struct {
 	ID       string   `fmap:"-"`
-	Username string   `fmap:"username,omitempty"`
-	Name     string   `fmap:"name,omitempty"`
-	Age      int      `fmap:"age,omitempty"`
-	Meta     []string `fmap:"metadata,omitempty"`
+	Username string   `fmap:"my_username,omitempty,mask=uname"`
+	Name     string   `fmap:"my_name,omitempty,mask=name"`
+	Age      int      `fmap:"age,omitempty,mask=age"`
+	Meta     []string `fmap:"meta,omitempty"`
 }
 
-func TestGet(t *testing.T) {
-	user := &User{
+var user = &User{
+	ID:       "123",
+	Username: "foo_bar",
+	Name:     "Foo Bar",
+	Age:      30,
+	Meta:     []string{"other"},
+}
+
+func TestFullMap(t *testing.T) {
+	mp, err := Make(user)
+	expected := map[string]any{
+		"my_username": "foo_bar",
+		"my_name":     "Foo Bar",
+		"age":         30,
+		"meta":        []string{"other"},
+	}
+	t.Log(mp)
+	if assert.NoError(t, err) {
+		assert.Equal(t, expected, mp)
+	}
+}
+
+func TestWithOmit(t *testing.T) {
+	u := &User{
 		ID:       "123",
-		Username: "foobar",
-		Name:     "Foo Bar",
-		Age:      50,
+		Username: "foo_bar",
+		Name:     "",
+		Age:      30,
 		Meta:     []string{},
 	}
-	mp, err := Get(user)
+	mp, err := Make(u, WithOmit())
+	expected := map[string]any{
+		"my_username": "foo_bar",
+		"age":         30,
+	}
 	t.Log(mp)
 	if assert.NoError(t, err) {
-		assert.Equal(t, 3, len(mp))
+		assert.Equal(t, expected, mp)
 	}
+}
 
-	user = &User{
-		ID:       "123",
-		Username: "foobar1",
+func TestWithMask(t *testing.T) {
+	mp, err := Make(user, WithMask([]string{"uname", "name"}))
+	expected := map[string]any{
+		"my_username": "foo_bar",
+		"my_name":     "Foo Bar",
 	}
-	mp, err = Get(user)
-	t.Log(mp)
 	if assert.NoError(t, err) {
-		assert.Equal(t, 1, len(mp))
+		assert.Equal(t, expected, mp)
 	}
 }
