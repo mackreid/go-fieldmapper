@@ -2,7 +2,6 @@ package gofieldmapper
 
 import (
 	"errors"
-	"fmt"
 	"reflect"
 	"slices"
 	"strings"
@@ -18,7 +17,6 @@ func WithOmit() FieldRule {
 		if o == "" {
 			return tag, value, true
 		}
-		fmt.Println(reflect.ValueOf(value).IsZero())
 		if reflect.ValueOf(value).IsZero() {
 			return "", "", false
 		}
